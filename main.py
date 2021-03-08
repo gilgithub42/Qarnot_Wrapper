@@ -13,9 +13,9 @@ class Qarnot_Wrapper():
 	def __init__(self, args):
 		self.conn = qarnot.Connection(client_token=keys['token'])
 		self.args = args
-		self.name = "Test_Wrapper"
+		self.name = "1st_DQN_HP_explo"
 		# print(self.conn.profiles())
-		self.task = self.conn.create_task(self.name, 'docker-network', 1)
+		self.task = self.conn.create_task(self.name, 'docker-batch', 1)
 		error_happened = False
 
 	def import_folder(self, path, py_only=False):
@@ -46,9 +46,9 @@ class Qarnot_Wrapper():
 		pass
 
 	def launch(self, command):
-		self.task.constants['DOCKER_REPO'] = "ezalos/donkey_qarnot:1.00"
+		self.task.constants['DOCKER_REPO'] = "ezalos/qarnot_1stdqn:1.00"
 		self.task.constants['DOCKER_TAG'] = "v1"
-		self.task.constants['DOCKER_CMD'] = "/bin/sh -c \"pwd && ls -la . && ls -la .. && pip install sklearn && python3 Genetic_HP_Opti.py\""
+		self.task.constants['DOCKER_CMD'] = "/bin/sh -c \"pwd && cd /dqn && ls -la . && ls -la .. && python3 Genetic_HP_Opti.py && cat backup_dir/* \""
 		self.task.snapshot(5)
 		self.task.submit()
 
