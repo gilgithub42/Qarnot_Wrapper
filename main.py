@@ -46,7 +46,7 @@ class Qarnot_Wrapper():
 		pass
 
 	def launch(self, command):
-		self.task.constants['DOCKER_REPO'] = "ezalos/qarnot_1stdqn:1.00"
+		self.task.constants['DOCKER_REPO'] = "ezalos/qarnot_1stdqn:2.00"
 		self.task.constants['DOCKER_TAG'] = "v1"
 		self.task.constants['DOCKER_CMD'] = "/bin/sh -c \"pwd && cd /dqn && ls -la . && ls -la .. && python3 Genetic_HP_Opti.py && cat backup_dir/* \""
 		self.task.snapshot(5)

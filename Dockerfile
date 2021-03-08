@@ -13,5 +13,6 @@ RUN /usr/local/bin/python -m pip install --upgrade pip \
 	setuptools  simple_pid  tensorflow  torch  tornado  typing_extensions \
 	GitPython  gym  matplotlib  numpy  pandas scikit-learn==0.23.2 sklearn \
 	sklearn_deap  torch  tqdm
-RUN ls && git clone https://github.com/ezalos/1st_DQN.git /dqn \
+ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
+RUN git clone https://github.com/ezalos/1st_DQN.git /dqn \
 	&& cd /dqn && git checkout Louis 
