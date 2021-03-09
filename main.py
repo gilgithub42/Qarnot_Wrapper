@@ -7,48 +7,72 @@ import sys
 import qarnot
 import os
 
+import re
+
 from os import walk
+
+PURPLE = '\033[95m'
+BLUE = '\033[94m'
+GREEN = '\033[92m'
+YELLOW = '\033[93m'
+RED = '\033[91m'
+RESET = '\033[0m'
+BOLD = '\033[1m'
+UNDERLINE = '\033[4m'
+
 
 class Qarnot_Wrapper():
 	def __init__(self, args):
 		self.conn = qarnot.Connection(client_token=keys['token'])
 		self.args = args
-		self.name = "1st_DQN_HP_explo"
+		self.name = args.name
 		# print(self.conn.profiles())
-		self.task = self.conn.create_task(self.name, 'docker-batch', 1)
-		error_happened = False
+		profile = 'docker-network' if args.internet else 'docker-batch'
+		self.task = self.conn.create_task(self.name, profile, args.multi_core)
+		print("Task " + BLUE + self.name + RESET + ":")
+		print("\tProfile:\t" + YELLOW + profile + RESET)
+		print("\tNb cores:\t" + YELLOW + str(args.multi_core) + RESET)
+		self.prepare_docker()
 
 	def import_folder(self, path, py_only=False):
-		f = []
-		for (dirpath, _, filenames) in walk(path):
-			# print(dirnames)
-			if "/.git" in dirpath or "/__pycache__" in dirpath:
-				continue
-			for filename in filenames:
-				if not py_only or filename[-3:] == ".py":
-					f.append(dirpath + "/" + filename)
-		print(f)
-		try:
-			f.remove("./config.py")
-		except:
-			pass
-		bucket_name = self.name + '-input'
-		input_bucket = self.conn.create_bucket(bucket_name)
+		bucket_in_name = self.name + '-input'
+		input_bucket = self.conn.create_bucket(bucket_in_name)
 		input_bucket.sync_directory('input')
-		for e in f:
-			input_bucket.add_file(e)
-			print("File " + e + ' has been added to ' + bucket_name)
-
-		# Attach the bucket to the task
+		print("\tInput bucket has been created: " + YELLOW + bucket_in_name + RESET)
+		if path:
+			f = []
+			for (dirpath, _, filenames) in walk(path):
+				if "/.git" in dirpath or "/__pycache__" in dirpath:
+					continue
+				for filename in filenames:
+					if not py_only or filename[-3:] == ".py":
+						f.append(dirpath + "/" + filename)
+			try:
+				f.remove("./config.py")
+			except:
+				pass
+			for e in f:
+				input_bucket.add_file(e)
+				print("\tFile " + YELLOW + e + RESET + ' has been added to ' + bucket_in_name)
+			# Attach the bucket to the task
 		self.task.resources.append(input_bucket)
-		output_bucket = self.conn.create_bucket('pytorch-output')
+		bucket_out_name = self.name + '-output'
+		output_bucket = self.conn.create_bucket(bucket_out_name)
+		print("\tOutput bucket has been created: " + YELLOW + bucket_out_name + RESET)
 		self.task.results = output_bucket
-		pass
 
-	def launch(self, command):
-		self.task.constants['DOCKER_REPO'] = "ezalos/qarnot_1stdqn:2.00"
+	def prepare_docker(self):
+		self.task.constants['DOCKER_REPO'] = self.args.docker
 		self.task.constants['DOCKER_TAG'] = "v1"
-		self.task.constants['DOCKER_CMD'] = "/bin/sh -c \"pwd && cd /dqn && ls -la . && ls -la .. && python3 Genetic_HP_Opti.py && cat backup_dir/* \""
+		cmd = "/bin/sh -c \"" + self.args.command + "\""
+		self.task.constants['DOCKER_CMD'] = cmd
+		print("\tDocker repo:\t" + YELLOW +
+		      self.task.constants['DOCKER_REPO'] + RESET)
+		print("\tDocker cmd:\t" + YELLOW + self.task.constants['DOCKER_CMD'] + RESET)
+
+
+	def launch(self):
+		# error_happened = False
 		self.task.snapshot(5)
 		self.task.submit()
 
@@ -58,86 +82,77 @@ class Qarnot_Wrapper():
 			# Update task state changes
 			if self.task.state != last_state:
 				last_state = self.task.state
-				print("** {}".format(last_state))
+				print(GREEN + "** {}".format(last_state) + RESET)
 
 			# Wait for the task to complete, with a timeout of 5 seconds.
 			# This will return True as soon as the task is complete, or False
 			# after the timeout.
 			done = self.task.wait(5)
-
-			# Display fresh stdout / stderr
-			new = self.task.fresh_stdout()
-			if new:
-				sys.stdout.write("\n" + "-" * 10 + "stdout" + "-" * 10 + "\n")
-				sys.stdout.write(new.replace("0>", "\n0>"))
-				sys.stdout.write("\n" + "-" * 10 + "------" + "-" * 10 + "\n")
-			new = self.task.fresh_stderr()
-			if new:
-				sys.stderr.write("\n" + "-" * 10 + "stderr" + "-" * 10 + "\n")
-				sys.stderr.write(new.replace(" \\n", "\n"))
-				sys.stderr.write("\n" + "-" * 10 + "------" + "-" * 10 + "\n")
+			self.fetch_fresh_output()
 
 		# Display errors on failure
 		if self.task.state == 'Failure':
-			print("** Errors: %s" % self.task.errors[0])
-			error_happened = True
+			print(RED + "** Errors:" + RESET + " %s" % self.task.errors[0])
+			# error_happened = True
 
 		# Download results from output_bucket into given folder
 		self.task.download_results('output')
 
-
-# total 20
-#  0 > drwxrwxrwx  4 root  115 4096 Mar  3 09: 43 .
-#  0 > drwxr-xr-x 64 root root  160 Mar  3 09: 43 ..
-#  0 > -rwxrwxrwx  3 root root 2700 Mar  3 09: 41 files_example.py
-#  0 > -rwxrwxrwx  2 root root 2437 Mar  3 09: 42 main.py
-#  0 > -rwxrwxrwx  3 root root 2304 Mar  3 09: 41 pytorch_example.py
-#  0 > -rwxrwxrwx  3 root root  521 Mar  3 09: 41 wesh.py
-
-
-# " 0> total 88
-#  0> drwxrwxrwx   4 root  114  4096 Mar  5 16:27  .
-#  0> drwxr-xr-x 141 root root   160 Mar  5 16:27  ..
-#  0> -rwxrwxrwx   5 root root  2541 Mar  5 15:01 'CuteNet copy.py'
-#  0> -rwxrwxrwx   5 root root 15218 Mar  5 15:01  CuteNet.py
-#  0> -rwxrwxrwx   5 root root  1028 Mar  5 15:01  Genetic_HP_Opti.py
-#  0> -rwxrwxrwx   5 root root  6093 Mar  5 15:01  HyperParamsOpti.py
-#  0> -rwxrwxrwx   5 root root  2421 Mar  5 15:01  ModelsManager.py
-#  0> -rwxrwxrwx   5 root root  5814 Mar  5 15:01  Q.py
-#  0> -rwxrwxrwx   5 root root  8134 Mar  5 15:01  cartpole.py
-#  0> -rwxrwxrwx   5 root root  3161 Mar  5 15:01  config.py
-#  0> -rwxrwxrwx   5 root root   589 Mar  5 15:01  dataloader.py
-#  0> -rwxrwxrwx   5 root root  2643 Mar  5 15:01  llenotre.py
-#  0> -rwxrwxrwx   5 root root  1187 Mar  5 15:01  plot_data.py
-#  0> -rwxrwxrwx   5 root root  4604 Mar  5 15:01  ref.py
-#  0> -rwxrwxrwx   5 root root   523 Mar  5 15:01  test_gym.py
-#  0> -rwxrwxrwx   5 root root   389 Mar  5 15:01  utils.py
-#  0>
-#  0> CartPole <3 :   0% 0/1500 [00:00<?, ?episode/s]\n 
-#  0> CartPole <3 :   0% 0/1500 [00:00<?, ?episode/s, cmb=0, eps=89, scr=0, trn=21]\n 
-#  0> CartPole <3 :   0% 0/1500 [00:00<?, ?episode/s, cmb=0, eps=89, scr=0, trn=17]\n 
-#  0> CartPole <3 :   0% 0/1500 [00:00<?, ?episode/s, cmb=0, eps=88, scr=0, trn=15]\n 
-#  0> CartPole <3 :   0% 0/1500 [00:00<?, ?episode/s, cmb=0, eps=88, scr=0, trn=15]\n 
-#  0> CartPole <3 :   0% 0/1500 [00:00<?, ?episode/s, cmb=0, eps=87, scr=0, trn=17]\n 
-#  0> CartPole <3 :   0% 5/1500 [00:00<00:32, 45.73episode/s, cmb=0, eps=87, scr=0, trn=17]\n 
-#  0> CartPole <3 :   0% 5/1500 [00:00<00:32, 45.73episode/s, cmb=0, eps=87, scr=0, trn=16]
-#  /usr/local/lib/python3.7/site-packages/torch/autograd/__init__.py:132: 
-#  	UserWarning: CUDA initialization: Found no NVIDIA driver on your system. Please check that you have an NVIDIA GPU and installed a driver from http://www.nvidia.com/Download/index.aspx (Triggered internally at  /pytorch/c10/cuda/CUDAFunctions.cpp:100.)\n 
-#  0>   allow_unreachable=True)  # allow_unreachable flag"
-
-# [Profile(name=docker-batch, constants=(('DOCKER_SRV', 'https://registry.hub.docker.com'), ('DOCKER_REPO', 'library/ubuntu'), ('DOCKER_TAG', 'latest'), ('DOCKER_REGISTRY_LOGIN', ''), ('DOCKER_REGISTRY_PASSWORD', ''), ('DOCKER_USER', ''), ('DOCKER_HOST', ''), ('DOCKER_CMD', ''), ('DOCKER_SHUTDOWN_CMD', '/bin/true'), ('DOCKER_PROGRESS1', ''), ('DOCKER_PROGRESS2', ''), ('DOCKER_PROGRESS3', ''), ('RESOURCES_PATH', '/job'), ('DOCKER_WORKDIR', '${DOCKER_WORKDIR}'))}, 
-# Profile(name=docker-batch, constants=(('DOCKER_SRV', 'https://registry.hub.docker.com'), ('DOCKER_REPO', 'library/ubuntu'), ('DOCKER_TAG', 'latest'), ('DOCKER_REGISTRY_LOGIN', ''), ('DOCKER_REGISTRY_PASSWORD', ''), ('DOCKER_USER', ''), ('DOCKER_HOST', ''), ('DOCKER_CMD', ''), ('DOCKER_SHUTDOWN_CMD', '/bin/true'), ('DOCKER_PROGRESS1', ''), ('DOCKER_PROGRESS2', ''), ('DOCKER_PROGRESS3', ''), ('RESOURCES_PATH', '/job'), ('DOCKER_WORKDIR', '${DOCKER_WORKDIR}'))}, 
-# Profile(name=python, constants=(('PYTHON_SCRIPT', 'undefined'), ('PYTHON_PROGRESS', ''), ('DOCKER_SSH', ''), ('DOCKER_DEBUG', ''))}, 
-
+	def fetch_fresh_output(self):
+		# Display fresh stdout / stderr
+		new = self.task.fresh_stdout()
+		search = r"(\d+>)"
+		replace = r"\n\1"
+		if new:
+			new = re.sub(search, replace, new)
+			sys.stdout.write("\n" + BLUE + "-" * 10 + "stdout" + "-" * 10 + RESET + "\n")
+			sys.stdout.write(new)
+			sys.stdout.write("\n" + BLUE + "-" * 10 + "------" + "-" * 10 + RESET + "\n")
+		new = self.task.fresh_stderr()
+		if new:
+			sys.stderr.write("\n" + RED + "-" * 10 + "stderr" + "-" * 10 + RESET + "\n")
+			sys.stderr.write(new)
+			sys.stderr.write("\n" + RED + "-" * 10 + "------" + "-" * 10 + RESET + "\n")
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
-	parser.add_argument("-d", "--directory", help="Directory to upload")
+	parser.add_argument(
+			"-d",
+			"--directory",
+			help="Directory to upload")
+	parser.add_argument(
+			"-n",
+			"--name",
+			default="Cute_unnamed_task",
+			help="Task name")
+	parser.add_argument(
+			"-c",
+			"--command",
+			help="Command to execute in docker. It will be put between double quotes: \"xxx\" ")
+	parser.add_argument(
+			"-o",
+			"--docker",
+			default="ezalos/qarnot_1stdqn:2.00",
+			help="Docker container to use, ie: ezalos/qarnot_1stdqn: 2.00")
+	parser.add_argument(
+			"-m",
+			"--multi_core", 
+			default=1,
+			type=int,
+	        help="Number of cores to use")
+	parser.add_argument(
+			"-i", 
+			"--internet", 
+			default=False, 
+			action='store_true',
+	        help="To have internet in the container")
+
+
 	args = parser.parse_args()
-	if args.directory:
+	if args.command:
 		qw = Qarnot_Wrapper(args)
 		qw.import_folder(args.directory, True)
-		qw.launch("Yo")
+		qw.launch()
 
 
 
