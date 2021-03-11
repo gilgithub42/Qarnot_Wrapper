@@ -27,12 +27,30 @@ class Qarnot_Wrapper():
 		self.args = args
 		self.name = args.name
 		# print(self.conn.profiles())
+		if args.retrieve_task_output:
+			print("Asking to retrieve task " + YELLOW + args.retrieve_task_output + RESET)
+			task = self.conn.retrieve_task(args.retrieve_task_output)
+			if task:
+				print(GREEN + "\tTask found !" + RESET)
+				dir = 'output-' + args.retrieve_task_output
+				print("\tDownloading results from task in " + YELLOW + dir + RESET + " directory")
+				task.download_results(dir)
+			else:
+				print(RED + "Error: no task found" + RESET)
+		elif args.command:
+			self.prepare_task()
+			self.prepare_docker()
+			if args.directory:
+				self.import_folder(args.directory, True)
+			self.launch()
+
+
+	def prepare_task(self):
 		profile = 'docker-network' if args.internet else 'docker-batch'
-		self.task = self.conn.create_task(self.name, profile, args.multi_core)
+		self.task = self.conn.create_task(self.name, profile, self.args.multi_core)
 		print("Task " + BLUE + self.name + RESET + ":")
 		print("\tProfile:\t" + YELLOW + profile + RESET)
-		print("\tNb cores:\t" + YELLOW + str(args.multi_core) + RESET)
-		self.prepare_docker()
+		print("\tNb cores:\t" + YELLOW + str(self.args.multi_core) + RESET)
 
 	def import_folder(self, path, py_only=False):
 		bucket_in_name = self.name + '-input'
@@ -146,13 +164,14 @@ if __name__ == "__main__":
 			default=False, 
 			action='store_true',
 	        help="To have internet in the container")
+	parser.add_argument(
+            "-r",
+			"--retrieve_task_output",
+   	        help="Download output bucket of task UUID")
 
 
 	args = parser.parse_args()
-	if args.command:
-		qw = Qarnot_Wrapper(args)
-		qw.import_folder(args.directory, True)
-		qw.launch()
+	qw = Qarnot_Wrapper(args)
 
 
 
