@@ -142,6 +142,7 @@ if __name__ == "__main__":
 			"-n",
 			"--name",
 			default="Cute_unnamed_task",
+                        required=True,
 			help="Task name")
 	parser.add_argument(
 			"-c",
