@@ -1,6 +1,6 @@
 from os import walk
 import pandas as pd
-from tqdm import tqdm 
+from tqdm import tqdm
 
 def get_files_name(path):
 	f = []

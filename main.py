@@ -31,7 +31,7 @@ class Qarnot_Wrapper():
 			print("Asking to retrieve task " + YELLOW + args.retrieve_task_output + RESET)
 			task = self.conn.retrieve_task(args.retrieve_task_output)
 			if task:
-				print(GREEN + "\tTask found !" + RESET)
+				print(GREEN + "\tTask found!" + RESET)
 				dir = 'output-' + args.retrieve_task_output
 				print("\tDownloading results from task in " + YELLOW + dir + RESET + " directory")
 				task.download_results(dir)
@@ -155,14 +155,14 @@ if __name__ == "__main__":
 			help="Docker container to use, ie: ezalos/qarnot_1stdqn: 2.00")
 	parser.add_argument(
 			"-m",
-			"--multi_core", 
+			"--multi_core",
 			default=1,
 			type=int,
 	        help="Number of cores to use")
 	parser.add_argument(
-			"-i", 
-			"--internet", 
-			default=False, 
+			"-i",
+			"--internet",
+			default=False,
 			action='store_true',
 	        help="To have internet in the container")
 	parser.add_argument(
