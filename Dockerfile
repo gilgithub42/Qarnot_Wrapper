@@ -11,7 +11,7 @@ RUN /usr/local/bin/python -m pip install --upgrade pip \
 	prettytable  progress  pyfiglet  pyzmq  requests  scikit_image \
 	setuptools  simple_pid  tensorflow  torch  tornado  typing_extensions \
 	GitPython  gym  matplotlib  numpy  pandas scikit-learn==0.23.2 sklearn \
-	sklearn_deap  torch  tqdm
+	sklearn_deap  torch  tqdm Augmentor
 ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
 RUN chmod +x DonkeySimLinux/DonkeySimLinux/donkey_sim.x86_64
 RUN git clone https://github.com/ezalos/1st_DQN.git /dqn \
